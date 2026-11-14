@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --color-piano-white: #f9fafb;
+  --color-piano-black: #111827;
+  --color-piano-correct: #22c55e;
+  --color-piano-wrong: #ef4444;
+  --color-piano-next: #3b82f6;
+}
+
+@layer base {
+  body {
+    background-color: #030712;
+    color: #f3f4f6;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+  }
+  .btn:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+  .btn-primary {
+    background-color: #2563eb;
+    color: white;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: #3b82f6;
+  }
+  .btn-success {
+    background-color: #16a34a;
+    color: white;
+  }
+  .btn-success:hover:not(:disabled) {
+    background-color: #22c55e;
+  }
+  .btn-ghost {
+    background-color: #374151;
+    color: #e5e7eb;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: #4b5563;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+  }
+  .panel {
+    background-color: #1f2937;
+    border-radius: 0.75rem;
+    border: 1px solid #374151;
+    padding: 1rem;
+  }
+  .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
