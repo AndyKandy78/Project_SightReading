@@ -30,6 +30,8 @@ export interface GameState {
   // MIDI
   midiDeviceName: string | null
   midiConnected: boolean
+  midiError: string | null
+  rescanTrigger: number
   activeKeys: Set<number>    // currently held MIDI keys
 
   // Actions
@@ -48,6 +50,8 @@ export interface GameState {
   setNoteStatus: (s: 'idle' | 'correct' | 'wrong') => void
   setMidiDevice: (name: string | null) => void
   setMidiConnected: (v: boolean) => void
+  setMidiError: (err: string | null) => void
+  triggerRescan: () => void
   keyDown: (midi: number) => void
   keyUp: (midi: number) => void
   resetStats: () => void
@@ -73,6 +77,8 @@ export const useGameStore = create<GameState>((set) => ({
   stats: { ...defaultStats },
   midiDeviceName: null,
   midiConnected: false,
+  midiError: null,
+  rescanTrigger: 0,
   activeKeys: new Set(),
 
   setMode: (m) => set({ mode: m }),
@@ -105,6 +111,8 @@ export const useGameStore = create<GameState>((set) => ({
   setNoteStatus: (s) => set({ noteStatus: s }),
   setMidiDevice: (name) => set({ midiDeviceName: name }),
   setMidiConnected: (v) => set({ midiConnected: v }),
+  setMidiError: (err) => set({ midiError: err }),
+  triggerRescan: () => set(s => ({ rescanTrigger: s.rescanTrigger + 1 })),
   keyDown: (midi) => set(s => {
     const activeKeys = new Set(s.activeKeys)
     activeKeys.add(midi)

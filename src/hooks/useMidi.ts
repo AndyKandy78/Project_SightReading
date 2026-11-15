@@ -1,65 +1,111 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '../store/gameStore'
 
 /**
  * Initialises WebMidi.js and routes MIDI events to the game store.
- * WebMidi.js v3 uses native ES module exports.
+ * Supports auto-detection on connect/disconnect and manual rescan.
  */
 export function useMidi() {
   const store = useGameStore()
-  const initialised = useRef(false)
+  const rescanTrigger = useGameStore(s => s.rescanTrigger)
+  const isEnabledRef = useRef(false)
+  const webMidiRef = useRef<any>(null)
 
-  useEffect(() => {
-    if (initialised.current) return
-    initialised.current = true
+  const attachListeners = useCallback((input: any) => {
+    try {
+      input.removeListener('noteon')
+      input.removeListener('noteoff')
 
-    async function init() {
-      try {
-        // Dynamic import so it doesn't break SSR / browsers without MIDI
-        const { WebMidi } = await import('webmidi')
-        await WebMidi.enable({ sysex: false })
+      input.addListener('noteon', (e: any) => {
+        const midi: number = e.note.number
+        useGameStore.getState().keyDown(midi)
+      })
 
-        function updateDevice() {
-          const inputs = WebMidi.inputs
-          if (inputs.length > 0) {
-            store.setMidiDevice(inputs[0].name)
-            store.setMidiConnected(true)
-          } else {
-            store.setMidiDevice(null)
-            store.setMidiConnected(false)
-          }
-        }
+      input.addListener('noteoff', (e: any) => {
+        const midi: number = e.note.number
+        useGameStore.getState().keyUp(midi)
+      })
+    } catch (e) {
+      console.warn('Failed to attach MIDI listeners to input:', input?.name, e)
+    }
+  }, [])
 
-        updateDevice()
+  const updateDeviceList = useCallback((WebMidi: any) => {
+    const inputs = WebMidi.inputs || []
+    if (inputs.length > 0) {
+      const activeInput = inputs[0]
+      store.setMidiDevice(activeInput.name || 'MIDI Keyboard')
+      store.setMidiConnected(true)
+      store.setMidiError(null)
+      inputs.forEach((input: any) => attachListeners(input))
+    } else {
+      store.setMidiDevice(null)
+      store.setMidiConnected(false)
+    }
+  }, [attachListeners, store])
 
-        WebMidi.addListener('connected', updateDevice)
-        WebMidi.addListener('disconnected', updateDevice)
+  const enableMidi = useCallback(async () => {
+    if (typeof window === 'undefined') return
 
-        // Route all note-on/off from all inputs
-        WebMidi.inputs.forEach(input => attachListeners(input, store))
-        WebMidi.addListener('connected', (e: any) => {
-          if (e.port.type === 'input') {
-            attachListeners(e.port, store)
-          }
-        })
-      } catch (err) {
-        console.warn('WebMidi not available:', err)
-        store.setMidiConnected(false)
-      }
+    // 1. Check browser support
+    if (!('requestMIDIAccess' in navigator)) {
+      store.setMidiError('Web MIDI is not supported in this browser. Please open this app in Google Chrome or Microsoft Edge.')
+      store.setMidiConnected(false)
+      return
     }
 
-    init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-}
+    try {
+      const { WebMidi } = await import('webmidi')
+      webMidiRef.current = WebMidi
 
-function attachListeners(input: any, store: ReturnType<typeof useGameStore.getState>) {
-  input.addListener('noteon', (e: any) => {
-    const midi: number = e.note.number
-    store.keyDown(midi)
-  })
-  input.addListener('noteoff', (e: any) => {
-    const midi: number = e.note.number
-    store.keyUp(midi)
-  })
+      if (!WebMidi.enabled) {
+        await WebMidi.enable({ sysex: false })
+      }
+
+      isEnabledRef.current = true
+      store.setMidiError(null)
+
+      // Listen for hotplug events
+      WebMidi.removeListener('connected')
+      WebMidi.removeListener('disconnected')
+
+      WebMidi.addListener('connected', (e: any) => {
+        if (e.port?.type === 'input') {
+          attachListeners(e.port)
+        }
+        updateDeviceList(WebMidi)
+      })
+
+      WebMidi.addListener('disconnected', () => {
+        updateDeviceList(WebMidi)
+      })
+
+      updateDeviceList(WebMidi)
+    } catch (err: any) {
+      console.warn('WebMidi enable failed:', err)
+      const message = err?.message || String(err)
+      if (message.toLowerCase().includes('permission') || message.toLowerCase().includes('denied')) {
+        store.setMidiError('MIDI permission denied. Please allow MIDI in your browser site permissions.')
+      } else {
+        store.setMidiError(`MIDI initialization error: ${message}`)
+      }
+      store.setMidiConnected(false)
+    }
+  }, [attachListeners, store, updateDeviceList])
+
+  // Initial load
+  useEffect(() => {
+    enableMidi()
+  }, [enableMidi])
+
+  // Manual rescan trigger
+  useEffect(() => {
+    if (rescanTrigger > 0) {
+      if (webMidiRef.current && webMidiRef.current.enabled) {
+        updateDeviceList(webMidiRef.current)
+      } else {
+        enableMidi()
+      }
+    }
+  }, [rescanTrigger, enableMidi, updateDeviceList])
 }
